@@ -9,10 +9,10 @@ output:
 
 ## Setup
 **Git-Overleaf publish commands**
- git pull origin master
- git add .
- git commit -m “message” 
- git push -u origin master
+git pull origin master
+git add .
+git commit -m “message” 
+git push -u origin master
  
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
