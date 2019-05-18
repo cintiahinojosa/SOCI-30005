@@ -1,0 +1,18 @@
+
+                      LEVEL-1 DESCRIPTIVE STATISTICS
+
+ VARIABLE NAME       N       MEAN         SD         MINIMUM      MAXIMUM
+       SES          7185       0.00       0.78        -3.76         2.69
+   MATHACH          7185      12.75       6.88        -2.83        24.99
+
+
+                      LEVEL-2 DESCRIPTIVE STATISTICS
+
+ VARIABLE NAME       N       MEAN         SD         MINIMUM      MAXIMUM
+    SECTOR           160       0.44       0.50         0.00         1.00
+   MEANSES           160      -0.00       0.41        -1.19         0.83
+
+MDM template:  C:\Users\cinti\Box Sync\Booth 2017-2018\Spring 2019\Statistical Methods of Research 2\TA Sessions\hsb.mdmt
+MDM file name: hsb.mdm
+Date:          May 10, 2019
+Time:          16:00:53

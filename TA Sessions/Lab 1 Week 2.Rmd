@@ -1,0 +1,299 @@
+---
+title: "Intro to R Week 2 Lab 1"
+params:
+  dotabs: no
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+utput:
+  html_document:
+    code_folding: hide
+    css: styles.css
+    df_print: kable
+    number_sections: yes
+    self_contained: yes
+    theme: cerulean
+  pdf_document: default
+---
+
+### R Studio Interface
+The R interface has 4 panels which include:  
+- scripts (markdown documents, notebooks)  
+- console (command line)  
+- enviornment (lists of created/availabe objects)  
+- files/plots/viewer  
+    
+#### Packages  
+You use packages to run your code. For any package, you install just once, then use `library` to load the package when needed.  
+For example:  
+
+`install.packages("packagename")`  You only need to do this once.
+You can also install packages by using the interface:    
+- Toos > Install Packages   
+To envoke a package (which you need to do everytime you start working in R)  
+`library(packagename)` when you start up RStudio.
+    
+#### Working Directory  
+- where you keep your files, data, etc  
+- always know where you are!   
+- make a seperate workign directory for each project  
+  
+#### Working Directory Basics
+  * get working directory
+- set working directory  
+- or use the File panel in R studio  
+  
+`getwd()`  
+`setwd()`  
+
+# Computational Thinking  
+
+#### Algorithms and Data Structures  
+- formal steps to solve a problem  
+  
+#### Data Structures  
+- how to store information in a computer  
+- everything is an object  
+  
+#### Types of Data Structures  
+- data types  
+   `character`: for text e.g., "statistics"  
+   `numeric`: e.g., 219.2  
+   `integer`: e.g., 44  
+   `logical`: TRUE , FALSE  
+   `factor`: for categories   
+   
+#### What is the Data Types  
+- what is an object?       
+      `is.character`  
+      `is.numeric`  
+      `is.logical`  
+      
+```{r}
+is.character("2")
+is.character(2)
+
+is.numeric(2)
+is.numeric("2")
+
+is.logical(1)
+is.logical(TRUE)
+```
+#### Converting the Data type  
+- convert one type into another  
+```{r}
+as.numeric("2")
+as.character(2)
+```
+  
+#### Assigning Variables   
+- everything in R is an object   
+- create objects by assigning values to them   
+- assign the value of 5 to x  
+- lets see what it is assigns the value to  
+
+
+```{r}
+x<-5
+x
+mode(x)
+is.character(x)
+is.integer(x)
+is.numeric(x)
+
+```
+#### Mathematical Operations  
+  + - * /      
+  %% modulus or remainder  
+  %/% integer division  
+  ^  power  
+```{r}
+5+5
+10-5
+5*5
+25/5
+
+7%%2
+11 %/% 2
+3^2
+
+a<-2
+b<-3
+a+b
+a*b
+b^a
+c<-a+b
+c
+d<-a*b
+d
+e<-c+d
+e
+is.numeric(e)
+d>c
+f<-c==d
+f
+is.logical(f)
+g<-as.numeric(f)
+g
+```
+#### Operators   
+  ==   
+  all.equal()  
+  >   
+  <  
+  >=  
+  <=  
+
+```{r}
+5>4
+5<4
+5<=5
+5>=5
+```
+
+### Program Flow  
+1) get data and assign to data structures  
+2) move through steps in the algorithm  
+    logical branches: if statments  
+    repeated operations: for loops  
+3) combine operations into functions  
+
+#### Common Mistakes in R  
+common mistakes in R  
+- using wrong case  
+- forgetting ""  
+- forgetting ()  
+- using function from a package that is not loaded  
+- typos
+
+# Basic Data Structures  
+#### Vector  
+- collection of values of the same type  
+- concatentate   
+- c(elements)  
+```{r}
+x <- c(3,7,4)
+x
+length (x)
+
+z <- c("a","b","c")
+z
+length(z)
+```
+- sequences   
+- seq(n1,n2,increment)  
+- n1:n2  
+```{r}
+y <- seq(1,10)
+y
+y2 <- seq(1,10,2)
+y2
+```
+#### Extracting Vector Elements  
+- specific element   
+  `[index]`  
+```{r}
+x<- seq(1,10)
+x
+x[4]
+x[1:5]
+```
+#### Matrices   
+- regular, two dimension tables  
+- convert a vector to matrix (x, nrow=n, ncol=m)  
+- dimension of matrics  
+    `dim`  
+```{r}
+v1<-1:16
+v1
+
+v2 <- matrix(v1, nrow=4,ncol=4)
+v2
+
+v3 <- matrix(v1, nrow=4,ncol=4,byrow=TRUE)
+v3
+dim(v3)
+```
+#### Extracting Matrix Elements   
+- finding a point in the matrix [rowselection, columnselection]  
+```{r}
+v3
+v3[2,2]
+v3[1:2,3:4]
+v3[,2]
+v3[,3:4]
+v3[c(1,3),]
+```
+#### Lists  
+- collection of elements of different types  
+
+```{r}
+z <- list (name="point", x=3.5, y=2)
+z
+```
+
+#### Data Frames  
+- columns= variables  
+- rows= observations  
+```{r}
+v1 <- 1:16
+m1 <- matrix(v1, nrow=4,ncol=4)
+m1
+
+t1 <-data.frame(m1)
+t1
+
+t2 <-as.data.frame(m1)
+t2
+
+
+```
+#### what is the difference between these two??  
+```{r}
+names(t1)
+row.names(t1)
+names(t2)
+row.names(t2)
+```
+# Lab 2 Week 3  
+# Reading a Data Frame from a Text File    
+  `read.table`  
+  `read.csv`  
+### things to watch out for  
+- make sure file is in working director  
+- header (sets the variable names)  
+- set stringsAsFactors=FALSE  
+  
+### Reading a data file  
+  data <- read.csv("NSYL.csv")  
+    
+### some useful commands  
+  view the first 6 rows  
+    head (data)  
+  structure, gives types of columns  
+    str  
+  dimension, number of rows and columns  
+    dim  
+  statistical summary of variables: min, 1st quartile, median, mean, 3rd quartils, max  
+    summary  
+    
+### Extracting variables  
+  sometimes you will want to extract a vector to look at just a subset of data  
+  
+### useful commands  
+
+#### extracting variables columns   
+  data_frame$variable_name  
+  [["variable,name"]]  
+  [,column_number]  
+  
+#### extracting a data frame  
+  [column_number]  
+  
+#Writing a Data Frame to a file  
+  write.csf(df,filename)  
+    set row.names=FALSE  
+  will be written to workign directory  
+ 
+  

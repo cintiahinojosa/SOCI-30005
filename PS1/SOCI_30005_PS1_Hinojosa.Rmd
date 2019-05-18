@@ -1,0 +1,377 @@
+---
+title: "SOCI 30005_PS1_Hinojosa"
+author: "Cintia Hinojosa"
+date: "April 26, 2019"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+```{r libraries, message=FALSE, warning=FALSE, include=FALSE} 
+library(tidyverse)
+library(dplyr)
+library(readr)
+library(psych)
+library(gmodels)
+library(doBy)
+library(rdrobust)
+library(foreign)
+library(ggplot2)
+library(plyr)
+library(stargazer)
+library(lmtest)
+library(gmodels)
+library(readr)
+```
+
+```{r load}
+nals <- read_csv("C://Users/cinti/Box Sync/Booth 2017-2018/Spring 2019/Statistical Methods of Research 2/TA Sessions/nals_synthetic.csv", col_names = TRUE)
+
+ls()
+names(nals)
+summary(nals)
+```
+
+## Probability
+
+> Consider the population of US adults in the labor force in 1992. We are interested in the relationship between educational attainment and the risk of unemployment. Educational attainment has six possible values: no degree, GED, high school degree, associates degree, bachelors degree, and masters degree or higher.
+
+### Q1. Construct a theoretical contingency table with two rows (values of unemployment) and six columns (values of educational attainment) in which the entries are the joint and marginal probabilities. Use Greek letters to represent these (for example use it). 
+
+```{r tab}
+
+# Label values for easy interpretation
+nals$unemp <- factor(nals$unemp,
+levels = c(0,1), 
+labels = c("employed", "unemployed"))
+
+nals$Education <- factor(nals$Education,
+levels = c(1,2,3,4,5,6), 
+labels = c("none", "ged", "hs", "aa", "ba", "grad"))
+
+
+# Contingency table with educational attainment (x) and unemployment status(y)
+nals.tab <- prop.table(table(nals$Education,nals$unemp, 
+                                     dnn = c("Education Attainment", "Unemployment Status")))
+
+# Convert to data frame
+nals.tab <- as.data.frame.matrix(nals.tab)
+ 
+# Get marginals and joint probabilities for rows
+nals.tab$marginal.education <- rowSums(nals.tab)
+ 
+# Add joint probabilities to get unemployment marginals
+nals.tab["marginal.employment",] <- colSums(nals.tab)
+ 
+nals.tab
+```
+
+```{r crosstab} 
+
+# Crosstabulation of unemployment status and educational attainment
+# N/T = joint probability
+# Col and row percentages = marginal probability
+crosstab <- CrossTable(nals$unemp, nals$Education,
+           expected = FALSE, 
+           prop.r = TRUE, 
+           prop.c = TRUE,
+           prop.t = TRUE,
+           prop.chisq = FALSE)
+```
+
+$$
+Pr(Y=y)=\phi^y (1-\phi)^{1-y}\text{, for }y\text{ }\epsilon \{0,1\}\\
+y:\{1=\text{unemployed, }0=\text{employed\}}\ \\
+Pr(Y=1)=\phi \\
+Pr(Y=0)=1-\phi
+$$
+
+### Q2. Define the marginal probability of unemployment and decompose it into the sum of the relevant joint probabilities. 
+
+#### Marginal Probabilities for Unemployment Status:
+$$
+Pr(Y=y)= \sum_x Pr(Y=y, X=x) 
+$$
+
+\begin{aligned}
+\text{Marginal probability of Unemployment:} && Pr(Y=0)= \sum_x Pr(Y=1, X=x)&& =0.088 \\
+
+\text{Marginal probability of Employment:} && Pr(Y=1)= \sum_x Pr(Y=0, X=x)&& =0.912 \\
+\end{aligned}
+
+The marginal probabilities tell us the probability of an event independent of other variables. Here, there is a 91.2% probability that a randomly selected individual will be employed and 8.8% probability they would be unemployed.
+
+#### Joint Probabilities for Unemployment Status and Educational Attainment:
+$$
+Pr(Y=1, X=x)= x \epsilon \{1,2,4,5,6\}, y \epsilon \{0,1\}
+$$
+```{r j.u_edu}
+j.u_nd <- .19
+j.u_ged <- .005
+j.u_hs <- .040
+j.u_aa <- .01
+j.u_ba <- .009
+j.u_ma <- .004
+```
+
+
+\begin{aligned}
+\text{Unemployed and no degree:} && Pr(Y=1)=Pr(Y=1, X=1)&& =0.019 \\
+
+\text{Unemployed and GED:} && Pr(Y=1)=Pr(Y=1, X=2)&& =0.005  \\
+
+\text{Unemployed and HS:} && Pr(Y=1)=Pr(Y=1, X=3)&& =0.040  \\
+
+\text{Unemployed and AA:} && Pr(Y=1)=Pr(Y=1, X=4)&& =0.010  \\
+
+\text{Unemployed and BA:} && Pr(Y=1)=Pr(Y=1, X=5)&& =0.009 \\
+
+\text{Unemployed and grad:} && Pr(Y=1)=Pr(Y=1, X=6)&& =0.004
+\end{aligned}
+
+The joint probabilities tell us the probability that an individual has two attributes of certain levels. For example, from observing the joint probabilities in the data, there is a 1.9% probability of an individual being unemployed and having no educational degree, and for the most part, this probability shrinks as the level of educational attainment grows. Relative to the other probability estimates, unemployed individuals with a high school degree break away from this pattern, with the highest observed joint probability with unemployment at 4%.
+
+### Q3.For each possible level of education, define the conditional probability of unemployment. 
+
+#### Conditional Probabilities for Unemployment: 
+$\text{Conditional Probabilities for Unempolyment}=\frac{\text{Joint Probability}}{\text{Marginal Probability}}$
+
+$$
+Pr(Y=1|X=x)=\frac{Pr(Y=1, X=x)}{Pr(X=x)}
+$$
+
+
+\begin{aligned}
+\text{Unemployed and no degree:} && Pr(Y=1|X=1)=\frac{Pr(Y=1,X=1)}{Pr(X=1)}&& = `r (.019/.126)`\\
+
+\text{Unemployed and GED:} && Pr(Y=1|X=2)=\frac{Pr(Y=1,X=2)}{Pr(X=2)}&& = `r (.005/.039)`\\
+
+\text{Unemployed and HS:} && Pr(Y=1|X=3)=\frac{Pr(Y=1,X=3)}{Pr(X=3)}&& = `r (.040/.432)`\\
+
+\text{Unemployed and AA:} && Pr(Y=1|X=4)=\frac{Pr(Y=1,X=4)}{Pr(X=4)}&& = `r (.010/.127)`\\
+
+\text{Unemployed and BA:} && Pr(Y=1|X=5)=\frac{Pr(Y=1,X=5)}{Pr(X=5)}&& = `r (.009/.179)`\\
+
+\text{Unemployed and grad:} && Pr(Y=1|X=6)=\frac{Pr(Y=1,X=6)}{Pr(X=6)}&& = `r (.004/.097)`
+\end{aligned}
+
+Conditional probability shows us the probability that an individual will experience an event, given another event. In this case, we are examining the probability that an individual is unemployed *given* the level of education they have attained. The data reveals a pattern in which the conditional probability of unemployment decreases as level of education attained increases, with the joint probability of being unemployed and having no degree at 15.1% while being unemployed and having a master's degree or higher is at 4.1%.
+
+### Q4. Decompose the joint probability of having no degree and being unemployed into the relevant marginal and conditional probabilities. 
+
+
+$\text{Joint Probability}=\text{Conditional Probability}*\text{Marginal Probability}$
+
+$$
+Pr(X=1, Y=1) = Pr(Y=1|X=1)*Pr(X=1) \\
+Pr(Y=1, X=1) = Pr(X=1|Y=1)*Pr(Y=1) 
+$$
+
+$\text{Unemployed and no degree:}$
+
+$$
+\begin{aligned}
+Pr(Y=1|X=1)&=Pr(Y=1|X=1)*Pr(X=1) \\
+           &=(.019/.126)*(.126) \\
+           &=(.151)*(.126)\\
+           &=.019
+\end{aligned}
+$$
+We can break down the joint probability equation to see observe the conditional and marginal probabilities of unemployment and educational attainment. The joint probability for an individual to be unemployed and have no educational degree is 1.9%, the conditional probability that they will be unemployed given that they have no degree is 15.1%, and the marginal probability of having no educational degree is 12.6%.
+
+### Q5. Now decompose the marginal probability of being unemployed into a function of the relevant marginal and conditional probabilities. 
+
+
+$\text{Marginal probability derived from conditional probability and marginal probability:}$
+$$
+Pr(Y=y)= \sum_x Pr(Y=y|X=x)*Pr(X=x) 
+$$
+
+$\text{Marginal probability of unemployment:} $
+$$
+\begin{aligned}
+Pr(Y=1) &= Pr(Y=1| X=1)*Pr(X=1)\\
+&=(.019)*(.126)\\
+&=(.002)
+\end{aligned}
+$$
+
+### Q6. Using the NALS data, estimate the conditional probabilities of unemployment for each level of education. What does this seem to say about the association between education and unemployment? 
+
+```{r unemp_edu estimate}
+# Checkout variable labels
+names(nals)
+names(nals.tab)
+
+# Regression of marginal education on unemployed status
+lm_unemp_edu <- lm(unemployed ~ marginal.education, data=nals.tab)
+stargazer(lm_unemp_edu, type='text')
+```
+
+
+### Q7. Again using NALS, assume that unemployment and education were independent. What would then be the estimated conditional probability of unemployment given no degree? Under this scenario, how many of those with degree would we expect to be unemployed? Compare this to the number of those with no degree who were in fact unemployed and comment on how education is associated with joblessness for this group. 
+
+
+## Expectation 
+> We are again going to work with NALS, now using three variables: parent years of education (X), respondent years of education (Z), and adult literacy (Y). 
+
+
+```{r assumptions}
+# Relationship between literacy and parental years of education
+ggplot(nals, aes(parented,literacy)) + geom_point(color="blue") + 
+  labs(title="Relationship between literacy and parent's years of education") +
+  geom_smooth(method="loess", linetype="dashed",color="darkred", fill="blue")
+
+# Relationship between literacy and respondent's education
+ggplot(nals, aes(Education,literacy)) + geom_point(color="darkgreen") + 
+  labs(title="Relationship between literacy and respondent's years of education") + 
+  geom_smooth(method="loess", linetype="dashed",color="darkred", fill="green")
+```
+
+There is a general positive linear relationships between the outcome variable, respondent's literacy level, with both of the independent variables, parent's years of education and respondent's educational attainment. There  also doesn't seem to be any extreme outliners that stand out, so we can continue examining for statistically significant linear relationships through regression models.
+
+### Q1. Write down a theoretical linear regression model in which Y is a function of X and Z. Define the terms in the model. We will assume this is the true model" of the relationship between X,Z, and Y. 
+
+$\text{Y as a function of X and Z:}$
+$$
+Y_i=\alpha+\beta X_i+\gamma Z_i+\varepsilon_i, \\
+\varepsilon_i ~ N(0,\sigma_{y|x,z})
+$$
+In the above model, $Y_i$ is the literacy level of a particular individual in the population, $\alpha$ is the y-intercept parameter for the model's regression line, meaning that it is the average literacy level for an individual who has no educational degree ($\gamma Z_i$) and parents who have 0 years of education ($\beta X_i$). ($\beta_1 x$) is the regression coefficient for the slope parameter for parental education and  ($\gamma Z_i$) is the parameter for respondent's educational attainment. $\varepsilon_i$ is the difference between an individual's actual literacy level and the average literacy level for all individuals in the population who share the same values in regards to their educational attainment, Z, and their parent's years of education, X. $\sigma_{y|x,z}$ is the standard deviation for a particular subset of individuals in the populations with the same values for Z and X.
+
+### Q2. Write down two other linear regression models: a) Z is a function of X; and b) X is a function of Z; 
+
+$\text{Z as a function of X:}$
+$$
+Z_i=\alpha+\beta X_i+\varepsilon_i, \\
+\varepsilon_i ~ N(0,\sigma_{z|x})
+$$
+
+
+$\text{X as a function of Z:}$
+$$
+X_i=\alpha+\beta Z_i+\varepsilon_i, \\
+\varepsilon_i ~ N(0,\sigma_{x|z})
+$$
+
+### Q3. Now suppose someone estimated a model using only Z as a predictor. That means the person would be studying the expected value of Y given Z alone. 
+
+#### a. Using (1), find E(Y|Z). 
+$$\mathbb E(Y|Z)=\mathbb E(\alpha) + \mathbb E(\beta Z)$$
+
+#### b. Using (1) and (2b), define the bias involved. Show that it has two parts and define them.
+
+$$
+\begin{aligned}
+Y_i=\alpha+\beta Z_i+\varepsilon_i \\
+\beta=Z_i+\gamma(Z_i)+\varepsilon_i\\
+\end{aligned}
+$$
+In the above model, $\beta=Z_i$ is the naive estimate of the coefficient for the respondent's educational attainment as a sole predictor of their literacy level, $Y_i$. The potential bias in the model is captured by $\gamma(Z_i)+\varepsilon_i$. The two conditions for bias to equal 0 is for $\gamma=0$ or if there was no difference in the predicted average literacy level between individuals with varying years of education.
+
+```{r Q4 lm}
+# linear regression of respondent's educational attainment on adult literacy
+lm_literacy_ed <- lm(nals$literacy ~ nals$Education)
+summary(lm_literacy_ed)
+stargazer(lm_literacy_ed, type='text')
+lm_yz.ged <- 65.202 
+lm_yz.hs <- 74.697
+lm_yz.aa <- 98.976
+lm_yz.ba <- 120.800
+lm_yz.grad <- 131.235
+```
+In a linear regression of respondent educational on adult literacy, the coefficients vary by level of educational attainment. The model predicts an average literacy score increase of 65.2 for respondents with a ged, 74.7 for those with a high school degree, 99 for those with an associates degree, 120.8 for those with a bachelor's degree, and 131.2 for respondents with a master's degree or higher. Respondents with no educational degree having a predicted average literacy score of 204.4 under this model. All coefficient estimates are statistically significant (p<0.001***) and have large magnitudes. Having a GED is predicted to have the smallest estimated average effect on literacy scores compared to the other educational degrees, with a large t-score of 25.8.
+
+$$ 
+y_i = 204.4 + z_{\text{no_degree}} + \epsilon  \\
+y_i = 204.4 + 65.2z_{ged} + \epsilon  \\
+y_i = 204.4 + 74.7z_{hs} + \epsilon  \\
+y_i = 204.4 + 98.98z_{aa} + \epsilon  \\
+y_i = 204.4 + 120.8z_{ba} + \epsilon  \\
+y_i = 204.4 + 131.24z_{grad} + \epsilon  \\
+$$
+
+### Q4. Now suppose someone estimated a model using only X as a predictor. That means this person would be studying the expected value of Y given X alone (2c). 
+
+#### a. Using (1), find E(Y|X). Define the “total effect" of X on Y. 
+
+$$\mathbb E(Y|X)=\mathbb E(\alpha) + \mathbb E(\beta X)$$
+$\text{Total effect of parent education (X) on adult literacy (Y):}$
+$$
+\begin{aligned}
+Y_i=\alpha+\beta X_i+\varepsilon_i \\
+\beta=X_i+\gamma(X_i)+\varepsilon_i\\
+\end{aligned}
+$$
+#### b. What is the direct effect of X on Y based on your theoretical model (1)?
+
+#### c. Find the indirect effect of X on Y as it operates through Z. 
+
+
+#### d. Show that the total effect of X on Y is the sum of the direct and indirect effects you have defined.
+
+$\text{Total effect of x on y= Direct + Indirect effect}=\theta$
+$y&=\theta x+\varepsilon_i$
+
+
+### Q5. Estimate these total, direct, and indirect effects using NALS, and comment on what you have learned about how parent education and respondent education are linked to adult literacy. 
+
+$\text{Direct effect of parent education (X) on adult literacy (Y):}$
+```{r Q5 direct_yx}
+# linear regression of parental education (X) on adult literacy (Y)
+lm_yx <- lm(nals$literacy ~ nals$parented)
+summary(lm_yx)
+stargazer(lm_yx, type='text')
+direct_yx <- 8.5697
+direct_yx
+```
+
+$$ 
+\begin{aligned}
+Y_i&=\alpha+\beta X_i+\varepsilon_i \\
+y_i&= 192.47 + 8.57x + e
+\end{aligned}
+$$
+In a linear regression of parental education on adult literacy, parental education has a significant total effect on literacy with a coefficient of $b=$8.57(.134), $t=63.92$, $p<0.001***$. This means that the model estimates an average increase of 8.57 units in a respondent's literacy level for every added 1 year of parental education, with respondents with 0 years of parental edcuation having a predicted average literacy score of 192.47. 
+
+
+$\text{Indirect effect of parent education (X) on educational attainment (Z):}$
+```{r Q5 indirect_xz}
+# linear regression of parental education (X) on educational attainment (Z)
+lm_xz <- lm(parented ~ Education, data=nals)
+summary(lm_xz)
+stargazer(lm_xz, type='text')
+ind_xz.ged <- 2.50642
+ind_xz.hs <- 3.08494
+ind_xz.aa <- 4.55388
+ind_xz.ba <- 5.35568
+ind_xz.grad <- 5.27675
+```
+
+$$
+\begin{aligned}
+z_i &= 7.45 + (0)x_{\text{no_degree}} + \epsilon    \\
+z_i &= 7.45 + (2.506)x_{ged} + \epsilon    \\
+z_i &= 7.45 + (3.085)x_{hs} + \epsilon    \\
+z_i &= 7.45 + (4.554)x_{aa} + \epsilon    \\
+z_i &= 7.45 + (5.356)x_{ba} + \epsilon    \\
+z_i &= 7.45 + (5.277)x_{grad} + \epsilon    \\
+\end{aligned}
+$$
+There is a statistically significant effect of years of parent's education on respondents' educational attainment that is robust across all degree levels (p<0.001***). 
+
+
+Total effect = `r direct_yx`+`r ind
+
+$$
+y=\delta z + \beta x+e
+$$
+
+There is a statistically significant effect of years of parent's education on educational attainment that is very robust across all levels of educational attainment. According to the NALS dataset, both respondent educational attainment and parental years of education are significant predictors of average literacy scores. Educational attainment is also a predictor of parental years of education and they are both moderately correlated with each other (*r*=.5). This suggests there may be an indirect or mediating relationship between these variables and literacy levels. It makes sense that academic factors like years of parental education and educational attainment would have a significant impact on an academic outcome like literacy scores. More investigation can be done on how well literacy scores may predict influential life outcomes like log annual earnings, to see if these strong associations have impact on life outcomes beyond academic advancement. 
+
+ 

@@ -1,0 +1,256 @@
+---
+title: "Week 3 Lab 2 Practice"
+params:
+  dotabs: no
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+utput:
+  html_document:
+    code_folding: hide
+    css: styles.css
+    df_print: kable
+    number_sections: yes
+    self_contained: yes
+    theme: cerulean
+  pdf_document: default
+---
+Let us load the `NALS` dataset and look at these variables
+Download and load the variables
+### Loading libraries
+library(haven)
+library(synthpop)
+library(tidyverse)
+library(ggplot2)
+library(jtools)
+library(summarytools)
+library(kableExtra)
+library(ggfortify)
+
+
+### Loading the synthetic dataset
+```{r load}
+nals <- read_csv("C://Users/cinti/Box Sync/Booth 2017-2018/Spring 2019/Statistical Methods of Research 2/TA Sessions/nals_synthetic.csv", col_names = TRUE)
+head(nals)
+```
+
+# Contingency Tables
+
+For the estimation of conditional and joint probabilities we need to create contingency tables. This process is pretty easy in R using the `prop.table()` and `table()` functions. Let us analyze a two-way contingency table from the `NALS` dataset. The two variables we will be analyzing:  
+1. education attainment - 6 possible values (Education)
+2. risk of unemployment (unemp)
+
+### Creating frequency count tables  
+The first line code is to show how to create frequency count tables from the dataset we have,
+```{r}
+table(nals$Education,nals$unemp)
+```
+### Creating contingency table
+Now that we know the frequency count, we can obtain the corresponding contingency table in the following way
+```{r}
+prop.table(table(nals$Education,nals$unemp))
+```
+### Creating contingency table
+To get the same in percentages, just multipl by 100
+```{r}
+nals.contingency <- prop.table(table(nals$Education,nals$unemp))*100
+
+nals.contingency
+```
+
+**How do we get marginal probabilities from this table?** 
+
+To get this, we use the margin argument to prop.table function. It tells where in rows (margin=1) or in columns (margin=2) grouping variable is.  
+
+### Marginals for unemployment attainment 
+Let us look at the marginals for the unemployment status:
+```{r}
+prop.table(table(nals$Education,nals$unemp), margin =2)*100
+```
+
+In the table above you can see that those who are unemployed are twice as likely to have no degree. We can also see that those who are employed are three times more likely to have a masters degree of higher than those who are unemployed. 
+
+### Marginals for education attainment 
+We can also look at the marginals for education attainment
+```{r}
+prop.table(table(nals$Education,nals$unemp), margin =1)*100
+```
+
+In this table you can clearly see that as the as education attainment increases, the rish of unemployment decreases. 
+
+
+# Linear Regression
+Today we are going to analyze linear regression in R, using the `NALS` data.  
+ 
+The variables we are going to be using in the analysis  
+- `X` = parent years of education  
+- `Z` = respondent years of education  
+- `Y` = adult literacy  
+
+### Writing a tibble
+Let us select the variables we are going to need in this analysis - `id`, `parented` (X), `yearsed` (Z) and `literacy` (Y)
+```{r}
+
+#  we can  assign this subsetted data into a new dataframe
+nals.dataframe <- nals %>% select(id,parented,yearsed,literacy)
+```
+### Renaming Variables
+
+Now that we have subset the data we can rename the columns in terms of X,Y and Z for the sake of our analysis. 
+```{r}
+# check the current column names
+colnames(nals)
+```
+Let us rename them
+```{r}
+nals <- nals %>% transmute(id=id, x=parented, z=yearsed, y=literacy)
+
+# if you want to keep the old variables but add new ones
+## then use `mutate` instead of `transmute`
+```
+Check the column names again
+```{r}
+colnames(nals)
+```
+Since we do not need the `id` variable in this case, let us remove that also
+```{r}
+nals <- nals %>% select(id, x,y,z)
+```
+The most basic method to look at the descriptives is
+```{r}
+summary(nals)
+```
+
+## Graphical analysis
+
+Before jumping in to the syntax of the linear model, lets try to understand these variables graphically. Typically, for each of the independent variables (predictors), the following plots are drawn to visualize the following behavior:  
+
+1. **Scatter plot**: Visualize the linear relationship between the predictor and response  
+
+2. **Box plot**: To spot any outlier observations in the variable. Having outliers in your predictor can drastically affect the predictions as they can easily affect the direction/slope of the line of best fit.  
+
+
+### Scatter Plot
+Let us look at scatter plots for each of the variables in our data    
+
+#### Relationship between literacy and parent's years of education
+```{r}
+ggplot(nals, aes(x,y)) + geom_point(color="blue") + 
+  labs(title="Relationship between literacy and parent's years of education") +
+  geom_smooth(method="loess", linetype="dashed",color="darkred", fill="blue")
+```
+
+#### Relationship between literacy and years of education
+```{r}
+ggplot(nals, aes(z,y)) + geom_point(color="blue") + 
+  labs(title="Relationship between literacy and years of education") + geom_smooth(method="lm")
+                                                                            
+```
+
+The scatter plot along with the smoothing line above suggests a linearly increasing relationship between the `y`-`x` and `y`-`z`. This is a good thing, because, one of the underlying assumptions in linear regression is that the relationship between the response and predictor variables is linear and additive.
+
+## Correlation  
+
+Correlation is a statistical measure that suggests the level of linear dependence between two variables, that occur in pair – just like what we have here in speed and dist. Correlation can take values between -1 to +1. If we observe for every instance where **years of parental education** increases increases, the **adult literacy** also increases along with it, then there is a high positive correlation between them and therefore the correlation between them will be closer to 1. The opposite is true for an inverse relationship, in which case, the correlation between the variables will be close to -1.  
+
+A value closer to 0 suggests a weak relationship between the variables. A low correlation (-0.2 < x < 0.2) probably suggests that much of variation of the response variable (Y) is unexplained by the predictor (X), in which case, we should probably look for better explanatory variables.  
+
+#### Correlation between adult literacy and parent's years of education*
+```{r}
+cor(nals$y, nals$x)
+```
+#### Correlation between adult literacy and years of education*
+```{r}
+cor(nals$y, nals$z)
+```
+
+## Linear Modeling
+
+Now that we have looked at the graphical plots, let us look how to model this linear relationship and what assumptions need to be satisfied for the same.  
+
+We will begin with the simple univariate predictor scenario where the response variable is `adult literacy (y)` and the predictor is `parental education (x)`. The model would look like
+$$ adult\_literacy_i = \beta_0+\beta_1parental\_education_i+\epsilon$$
+For the rest of the document we will refer to the above equation in its alternate form
+$$y_i = \beta_0+\beta_1x_i+\epsilon$$
+Given that,
+$$y = \beta_0+\beta_1x+\epsilon$$
+On taking expectation on both sides, we get
+$$\mathop{{}\mathbb{E}}Y = \mu(x)$$
+Note that we are talking about $\mu(x)$ (expected value of `Y` is a function of `x`) and not $\mu_x$ (expectation of `x`). For instance,  
+$$ \mu(x) = \beta_0+\beta_1$$
+Now we try to estimate $\beta_0$ and $\beta_1$. Now let us look at the assumptions required to consistently estimate the $\beta$ coefficients.
+
+Now that we have seen the linear relationship pictorially in the scatter plot and by computing the correlation, lets see the syntax for building the linear model. The function used for building linear models is lm(). The lm() function takes in two main arguments, namely: 
+
+1. Formula  
+2. Data  
+
+The data is typically a data.frame and the formula is a object of class formula. But the most common convention is to write out the formula directly in place of the argument as written below.
+```{r}
+linearMod <- lm(y ~ x, data=nals)  # build linear regression model on full data
+print(linearMod)
+
+```
+Now that we have built the linear model, we also have established the relationship between the predictor and response in the form of a mathematical formula for `Adult literacy(y)` as a function for `parental education(x)`.  
+
+For the above output, you can notice the ‘Coefficients’ part having two components:  
+```
+Intercept: 220.03  
+x: 6.237   
+```
+These are also called the *beta* coefficients. In other words, 
+
+$$ y = \beta_0 + \beta_1x + \epsilon$$
+is the same as
+$$ y = 220.03 + 6.24x + \epsilon  $$
+```
+**What assumptions do we need to satisfy to be able to report these results?**
+```
+
+### Assumptions
+1. **Linearity of data** - The relationship between the predictor (x) and the outcome (y) is assumed to be linear.  
+
+2. **Normality of residuals** - The residual errors are assumed to be normally distributed.  
+
+3. **Homogeneity of residuals variance** - The residuals are assumed to have a constant variance (homoscedasticity). 
+
+4. Independence of residuals error terms.  
+
+You should check whether or not these assumptions hold true.  Potential problems include:  
+
+1. **Non-linearity of the outcome** - predictor relationships  
+2. **Heteroscedasticity**: Non-constant variance of error terms.  
+3. Presence of influential values in the data that can be:  
+3.1. **Outliers**: extreme values in the outcome (y) variable  
+3.2. **High-leverage points**: extreme values in the predictors (x) variable  
+
+All these assumptions and potential problems can be checked by producing some diagnostic plots visualizing the residual errors.
+
+### Graphical verification of the assumptions
+#### Residual Plots
+Regression diagnostics plots can be created using the R base function `plot()` or the `autoplot()` function [`ggfortify` package], which creates a ggplot2-based graphics.
+```{r}
+par(mfrow = c(2, 2))
+plot(linearMod)
+```
+
+The residual plots can be used in four different ways  
+
+1. **Residuals vs. Fitted**. Used to check the linear relationship assumptions. A horizontal line, without distinct patterns is an indication for a linear relationship, what is good.  
+
+2. **Normal Q-Q**. Used to examine whether the residuals are normally distributed. It’s good if residuals points follow the straight dashed line.  
+
+3. **Scale-Location (or Spread-Location)**. Used to check the homogeneity of variance of the residuals (homoscedasticity). Horizontal line with equally spread points is a good indication of homoscedasticity. This is not the case in our example, where we have a heteroscedasticity problem.  
+
+4. **Residuals vs Leverage**. Used to identify influential cases, that is extreme values that might influence the regression results when included or excluded from the analysis. This plot will be described further in the next sections.
+
+
+### Linear Regression Diagonistics
+Now the linear model is built and we have a formula that we can use to predict the `adult literacy` if the corresponding `parental years of education` is known. Is this enough to actually use this model? NO! Before using a regression model, you have to ensure that it is statistically significant. How do you ensure this? Lets begin by printing the summary statistics for linearMod.
+```{r}
+summary(linearMod)  # model summary
+```
+#### p-value : Checking for statistical significance
+The summary statistics above tells us a number of things. One of them is the model p-Value (bottom last line) and the p-Value of individual predictor variables (extreme right column under ‘Coefficients’). The p-Values are very important because, We can consider a linear model to be statistically significant only when both these p-Values are less that the pre-determined statistical significance level, which is ideally 0.05. This is visually interpreted by the significance stars at the end of the row. The more the stars beside the variable’s p-Value, the more significant the variable.  
+

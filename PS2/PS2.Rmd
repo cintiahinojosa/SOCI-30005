@@ -1,0 +1,585 @@
+---
+title: "SOCI 30005_PS2_Hinojosa"
+author: "Cintia Hinojosa"
+date: "5/9/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	error = TRUE,
+	warning = FALSE
+)
+```
+
+```{r libraries, message=FALSE, warning=FALSE, include=FALSE} 
+library(haven)
+library(tidyverse)
+library(plyr)
+library(dplyr)
+library(readr)
+library(psych)
+library(gmodels)
+library(doBy)
+library(rdrobust)
+library(foreign)
+library(ggplot2)
+library(stargazer)
+library(lmtest)
+library(gmodels)
+library(magrittr)
+library(qwraps2)
+library(reshape2)
+library(HistogramTools)
+library(tidyverse)
+library(tidyimpute)
+library(ggplot2)
+library(summarytools)
+library(jtools)
+library(naniar)
+library(fastDummies)
+library(knitr)
+library(huxtable)
+library(forcats)
+```
+
+# CSIW Dataset
+```{r load}
+csiw <- read_sav("csiw_new.sav")
+summary(csiw, plain.scii = FALSE)
+```
+
+### Key Variables
+- CSIW (treatmt)
+    - 1=CSIW
+    - 0=control
+- Achievement Level (group)
+    - 1=High
+    - 2=Average
+    - 3=Low
+    - 4=Learning Disability 
+- Holistic pretest (cch1)
+    - pre-test on writing achievement
+- Holistic posttest (cch2)
+    - post-test on writing achievement
+- Grade (grade)
+    - 1=Grade 4
+    - 2=Grade 5
+    
+```{r histograms}
+
+# quick histograms
+list <-lapply(1:ncol(csiw),
+              function(col) ggplot2::qplot(csiw[[col]],
+                                           geom = "histogram",
+                                           binwidth = 1))
+
+cowplot::plot_grid(plotlist = list)
+```
+
+```{r recode, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Subset
+csiw <- csiw %>%  dplyr::transmute(treat = treatmt, group = group, pretest = cch1, posttest=cch2, grade = grade)
+
+# Checkout variable structure
+str(csiw$treat) #num
+str(csiw$group) #num
+str(csiw$grade) #factor 1,2
+str(csiw$pretest)
+str(csiw$posttest)
+
+# Replace missing values with -9
+csiw <- csiw %>% replace_with_na(replace=list(pretest=-9,posttest=-9, grade=-9))
+
+# GRADE #
+csiw$grade <- as.factor(csiw$grade)
+table(csiw$grade)
+
+# TREAT #
+# Convert to factors
+csiw$treat <- as.factor(csiw$treat)
+csiw$treat <- factor(as.numeric(as.character(csiw$treat)), ordered=FALSE)
+
+table(csiw$treat) # 284 T=1; 123 C=2
+
+# Recode
+csiw$treat <- recode(csiw$treat, "1"="1","2"="0")
+csiw$treat <- as.numeric(as.character(csiw$treat))
+
+table(csiw$treat) # 284 T=1, 123 C=0
+
+freq(csiw$treat, plain.ascii = FALSE, style = "rmarkdown", report.nas = FALSE)
+
+# GROUP VARIABLE #
+csiw$group <- as.factor(csiw$group)
+
+# Recode to label
+csiw$group <- recode(csiw$group, "1"="high","2"= "average", "3"="low", "4"="learndis")
+table(csiw$group)
+
+# DUMMY VARIABLES
+csiw <- dummy_cols(csiw,select_columns = "group")
+colnames(csiw)
+
+csiw <- dummy_cols(csiw,select_columns = "grade")
+colnames(csiw)
+
+table(csiw$grade) # N=137 4th=1; N=122, 5th=2
+table(csiw$grade_1) # N=137 4th=1; 5th=0
+table(csiw$grade_2)# N=122 4th=0; 5th=1
+
+```
+
+# A. Naive Model
+> Whenever you write down a model, make sure all terms are defined and all assumptions stated. If you want to discuss a table or plot, paste it directly into the text. Do not include any appendices. Do not include any tables or figures that you do not discuss in the text.
+
+## A1.Naive Population Model
+
+$$
+\begin{aligned}
+Y_i =\alpha_i + \beta_{\text{i_CSIW}} +\varepsilon_i \\
+\varepsilon_i ~ N(0,\sigma_{y|x})
+\end{aligned}
+
+$$
+In the naive model above, $Y_i$ is the post-test score, our main outcome of interest for evaluating the effect of CSIW, $\beta_1$. The alpha parameter, $\alpha$, or y-intercept of the regression line, will be the average predicted post-test score for an indivicual student in the population, $Y_i$, if the slope of the line, $\beta$, was 0. That is, if the beta coefficient representing participation in CSIW, $\beta_i$, were 0. The random error part of the model (2nd line) is the standard deviation parameter for the post-test scores for a particular subset of the population that has the same value for participation in CSIW and pre-test scores.
+
+The model is naive because it assumes the post-test scores are a function of participation in CSIW, when the outcomes were likely to have been influenced by other related factors.
+
+A naive estimate of the individual treatment effect of the CSIW program, $\tau_i$, is the difference in achievement scores between a student in the CSIW program, $Y_i(1)$ and not in the CSIW program, $Y_i(0)$:
+
+$$\tau_i=Y_i(1)-Y_i(0) $$
+
+## A2. Naive Model Estimate
+
+```{r naive est}
+# Remove rows with missing data
+csiw <- csiw[which(complete.cases(csiw)), ]
+
+# Range of post-test scores
+summary(csiw$posttest) #0-3
+
+# Run regression
+naive.model <- lm(posttest~treat, data=csiw)
+summary(naive.model)
+
+1.47/3 # 49% control 
+(1.47+.36)/3 # 61% csiw
+
+# save naive predicted values and residuals
+csiw$naive.predicted <- predict(naive.model)
+csiw$naive.residuals <- residuals(naive.model)
+```
+
+$$y_{\text{i_posttest}} =a_i(1.47) + b_{\text{i_CSIW}}(.36)$$
+
+The naive model predicts that the average post-test score for an individual student from the population is significantly predicted by participating in the treatment condition. The model predicts that a CSIW student would score an average of .36 points higher than the average from a non-CSIW student, which is predicted to be 1.47.
+
+# B. ANCOVA Model
+
+## B1. ANCOVA Population Model 
+
+$$
+\begin{aligned}
+Y_i=\alpha+\beta_{\text{i_CSIW}} * X_{\text{i_pretest}} +\varepsilon_i \\
+\varepsilon_i ~ N(0,\sigma_{y|x})
+\end{aligned}
+$$
+
+In the above model, student pre-test scores are added as a covariate, $X_{\text{i_pretest}}$. By adding this covariate, we are controling for the effect a student's pre-test score may have on their post-test score, $Y_{\text{i_posttest}}$, so that we can get a better estimate of the CSIW treatment effect, $\beta_{\text{i_CSIW}}$. The y-intercept, alpha $\alpha$ is the predicted average post-test score for an individual who was not in the CSIW and scored a 0 on their pre-test (or at the average score if the pre-test variable is centered). The error term, $\varepsilon_i$, is still a parameter representing the distance between an individual's observed post-test score and the model's predicted average post-test score.
+
+$$
+\begin{align}
+Y_\text{i_posttest}&=\alpha_i+\beta_{\text{i_CSIW}}+\gamma(X_\text{i_pretest}-\bar{X}_\text{i_pretest}) + \varepsilon_i \\
+
+\beta&=\mu_{y1}-\mu_{y0}-\gamma(\mu_{x1}-x_{x0}) \\
+\end{align}
+$$
+
+$$
+Y_i = \alpha+\tau_i + \beta x_i + \varepsilon_i
+$$
+
+This ANCOVA model assumes a linear relationship between the expected writing post-test scores and our predictor variables, such that the slope of the CSIW beta coefficient, $\beta$, is equal across different values of the pre-test scores. The coefficient, $\beta$, is the difference between the naive estimated difference and the bias included in post-test score estimates due to influence from pre-test scores. The second section, $\gamma(\mu_{x1}-x_{x0})$, represents the bias from pre-test scores that is being subtracted from the naive estimate, $\mu_{y1}-\mu_{y0}$, of the CSIW program effect on post-test scores. 
+
+
+## B2. ANCOVA Model Estimate
+
+```{r ancova est}
+
+# Remove rows with missing data
+csiw <- csiw[which(complete.cases(csiw)), ]
+
+# ancova regression
+ancova.model <- lm(posttest ~ treat + pretest, data=csiw)
+summary(ancova.model)
+
+(.99 + 0 + 0)/3 # 33% control 
+(.99 + .43 + 0)/3 # 47% + csiw
+(.99 + .43 + .37)/3 # 60% + pre-test
+
+# save ancova predicted values and residuals
+csiw$ancova.predicted <- predict(ancova.model)
+csiw$ancova.residuals <- residuals(ancova.model)
+
+```
+
+## B3. ANCOVA Explanation
+The ANCOVA model predicts that a CSIW student will score an estimated 2.95 points higher on average, compared to a non-CSIW students' average post-test score (t=6.35, p<0.0). The pre-test covariate is also a statistically significant predictor that estimates an additional 0.43 point increase on average in post-test score for every 1 point increase in the pre-test score.
+
+The F-statistic is a measure of the error sum of squares over the total sum of squares.
+In the ANCOVA model (F=34.57, p<.001), the error sum of squares is smaller than that of the naive ANOVA model (F=13, p<.001), while the total sum of squares remains the same. Adding pre-test scores as a covariate reduced the error sum of squares by accounting for the variance due to pre-test scores. 
+
+
+## B4. Plot ANCOVA Predicted Values
+> Graph the predicted values as a function of pre-test and group membership
+
+``` {r ancova graph}
+# Graph the predicted values as a function of pre-test and group membership
+# y=predicted values; x=pre-test
+
+ggplot(csiw, aes(x=pretest, y=ancova.predicted, color=factor(treat))) + geom_point()+geom_smooth(method="loess", color="blue")
+```
+
+There is a mostly linear parallel pattern that shows a positive main effect of CSIW, where CSIW students are predicted to score higher than the non-CSIW students at about the same rate of change. The gap between the green CSIW data ponts and the red non-CSIW data points represents the estimated mean difference between groups, $\bar{Y_1} - \bar{Y_2}$. There is a jump in the loess line  that may suggest the data does not fit the linearity assumption.
+
+# C. ASSESSING LINEARITY
+
+## C1-2. Plot ANCOVA Residuals and Pre-test Covariate
+```{r ancova linearity}
+# plot ancova residuals against pre-test covariate w/loess line
+# y=residuals; x=pretest
+ggplot(csiw, aes(x=pretest, y=ancova.residuals, color=factor(treat))) +geom_point()+geom_smooth(method="loess", color="darkred")+
+  xlab("Pretest Scores") + ylab("Residuals from ANCOVA model") + labs(title="Residuals vs Pretest - ANCOVA model")
+```
+The loess line is more straight than before but still has two slight curve point that seem to cancel each other out. The residuals are also in a trumpet shape with more variation at the low end of the pre-test scores.
+
+## C3. ANCOVA Residual and Pre-Test Linearity Explaination
+> A scattorplot of the ancova residuals against pre-test scores shows a curve in the loess line indicating the it may be a quadratic function rather than a linear function, so we should run further analyses to adjust.
+
+# D. QUADRATIC ANCOVA MODEL
+
+## D0. Center and square pre-test
+```{r center sq pretest}
+# Create centered pretest variable and a centered squared
+csiw$pretest.c <- csiw$pretest-mean(csiw$pretest)
+csiw$pretest.csq <- (csiw$pretest.c)^2
+```
+
+## D1. Quadratic ANCOVA Population Model
+> Write down a model that uses CSIW, pretest_c, and pretest_csq” are predictors
+
+$$
+\begin{aligned}
+Y_\text{i_posttest}=\alpha_i+\beta Z_i+\varepsilon_i \\
+\beta=Z_i+\gamma(Z_i)+\varepsilon_i\\
+\end{aligned}
+$$
+
+The naive estimate of the coefficient for a student's achievement as predicted by their participation in the CSIW program. The potential bias in the model is captured by $\gamma(Z_i)+\varepsilon_i$. The two conditions for bias to equal 0 is for $\gamma=0$ or if there was no difference in the predicted writing post-test score across individual students with different pre-test scores.
+
+## D2. Quadratic ANCOVA Estimate and Explanation
+> Tell us how to interpret all of the coefficients in the model (including the intercept)
+
+```{r quad ancova est}
+# run quadratic ancova model
+quadratic.ancova.model <- lm(posttest ~ treat+pretest.c+pretest.csq, data=csiw)
+summary(quadratic.ancova.model)
+
+# Save predicted values and residuals
+csiw$quadratic.ancova.predicted <- predict(quadratic.ancova.model)
+csiw$quadratic.ancova.residuals <- residuals(quadratic.ancova.model)
+```
+The y-intercept is the predicted average post-test score of a non-CSIW student, controlling for the pre-test performance (a=1.49). The effect of the CSIW program on post-test score is predicted to increase the average score by .41 points (t=4.49, p<0.0). The now centered pre-test covariate is also a statistically significant predictor of post-test scores in this model and it is predicted to add an average of .37 points (t=7.28,p<0.0).
+
+
+# E. SEARCHING FOR CONFOUNDERS
+
+## E1. Check for ommissions
+> Check to see if you have omitted any confounders. Tell us what you found. 
+
+```{r check ach confounds}
+
+# Dummies from achievement level eg. achievement level = high
+## corresponding dummy in the dataset = group_high
+
+# LEARNING DISABILITY #
+## Y(posttest) <-- Z(Learning disability) 
+## ANOVA: continuous vs. discrete
+summary(aov(posttest~group_learndis, data=csiw))
+
+## X(CSIW) <-- Z(Learning disability)
+## CHI2: discrete vs. discrete
+csiw$treat.factor <- factor(csiw$treat)
+chisq.test(csiw$treat.factor,csiw$group_learndis)
+
+
+# LOW ACHIEVEMENT #
+## Y(posttest) <-- Z(low) 
+## ANOVA: continuous vs. discrete
+summary(aov(posttest~group_low, data=csiw))
+
+## X(CSIW) <-- Z(low)
+## CHI2: discrete vs. discrete
+csiw$treat.factor <- factor(csiw$treat)
+chisq.test(csiw$treat.factor,csiw$group_low)
+
+
+# AVG ACHIEVEMENT #
+## Y(posttest) <-- Z(avg) 
+## ANOVA: continuous vs. discrete
+summary(aov(posttest~group_average, data=csiw))
+
+### X(CSIW) <-- Z(avg)
+### CHI2: discrete vs. discrete
+chisq.test(csiw$treat.factor,csiw$group_average)
+
+
+# HIGH ACHIEVEMENT #
+## Y(posttest) <-- Z(high) 
+## ANOVA: continuous vs. discrete
+summary(aov(posttest~group_high, data=csiw))
+
+## X(CSIW) <-- Z(high)
+## CHI2: discrete vs. discrete
+chisq.test(csiw$treat.factor,csiw$group_high)
+```
+
+A variable would a confound if it was a statistically significant predictor of both CSIW and post-test scores. According to the tests of association results, learning disability is a confound as it is a predictor of both post-test scores ($F$=54.72, p<.001) and participation in CSIW ($x^2$=7.27, p<.007). High achievement is the other confound that has a significant association with post-test scores ($F$=37.3, p<.001) and CSIW ($x^2$=9.44, p<.002) This imbalance across conditions may indicate that students with learning disabilities and high achieving students did not participate in CSIW by random and may also have an extra (dis)advantage in taking the writing post-test.
+
+```{r check grade confounds}
+
+# Dummies from grade levels: grade_1, grade_2
+
+# GRADE 1 #
+## Y(posttest) <-- Z(4th grade) 
+## ANOVA: continuous vs. discrete
+summary(aov(posttest~grade_1, data=csiw))
+
+## X(CSIW) <-- Z(4th grade)
+## CHI2: discrete vs. discrete
+chisq.test(csiw$treat.factor,csiw$grade_1)
+
+
+# GRADE 2 #
+## Y(posttest) <-- Z(5th grade) 
+## ANOVA: continuous vs. discrete
+summary(aov(posttest~grade_2, data=csiw))
+
+## X(CSIW) <-- Z(5th grade)
+## CHI2: discrete vs. discrete
+chisq.test(csiw$treat.factor,csiw$grade_2)
+
+```
+
+Regarding grade level, both 4th and 5th grade are significantly associated with post-test scores (F=12.69, p<0.001), but not with participation in CSIW so they are not confounds and should not be in our final model. 
+
+## E2. Estimate with Confounders
+> Re-estimate the model now but add any confounders
+
+### Estiamte with learning disability confound
+
+```{r est ld confounds}
+
+# Learning disability (LD) confound #
+confounder.check.model.ld <- lm(posttest ~ treat+pretest.c+pretest.csq+group_learndis, data=csiw)
+summary(confounder.check.model.ld)
+
+# LD Confound model predicted values
+csiw$confounder.check.model.ld <- predict(confounder.check.model.ld)
+
+# LD Confound model residuals 
+csiw$confounder.check.residuals.ld <- residuals(confounder.check.model.ld)
+
+# LD Confound model predicted values vs pretest confounds
+par(mfrow=c(1,2))
+
+ggplot(csiw, aes(x=pretest.c, y = confounder.check.model.ld, color=factor(treat))) + geom_point()+
+  geom_smooth(method="loess", color="darkred")+  xlab("Pretest Scores Centered") + ylab("Predicted values from Quadratic ANCOVA model") + labs(title="Predicted values vs Pretest squared - Confounder Check model")
+  
+# Confound model residuals vs pretest confounds
+ggplot(csiw, aes(x=pretest.c, y = confounder.check.residuals.ld, color=factor(treat))) + geom_point()+
+  geom_smooth(method="loess", color="darkred")+  xlab("Pretest Scores Centered") + ylab("Residuals from Quadratic ANCOVA model") + labs(title="Residuals vs Pretest squared - Confounder Check model")
+```
+
+I added learning disability and high achievement student status as confounding variables. 
+
+The model adjusted for learning disability status shows that CSIW participation is still a significant predictor of writing post-test scores (t=3.341, p<.001) that estimates an average increase of .29 points. Pre-test scores are also statistically significant and estimate an additional average .30 points for each 1 unit increase in pre-test score (t=6.167, p<.0001). Lastly, having a learning disability is also statistically significant (-6.03, p<.001) and which tacks on an average deduction of 0.56 points from the post-test score.
+
+### Estimate with high achieving confound
+```{r est hc confounds}
+
+# High achieveing (HA) confound #
+confounder.check.model.ha <- lm(posttest ~ treat+pretest.c+pretest.csq+group_high, data=csiw)
+summary(confounder.check.model.ha)
+
+# HA Confound model predicted values
+csiw$confounder.check.model.ha <- predict(confounder.check.model.ha)
+
+# HA Confound model residuals 
+csiw$confounder.check.residuals.ha <- residuals(confounder.check.model.ha)
+
+# HA Confound model predicted values vs pretest confounds
+par(mfrow=c(1,2))
+
+ggplot(csiw, aes(x=pretest.c, y = confounder.check.model.ld, color=factor(treat))) + geom_point()+
+  geom_smooth(method="loess", color="darkred")+  xlab("Pretest Scores Centered") + ylab("Predicted values from Quadratic ANCOVA model") + labs(title="Predicted values vs Pretest squared - Confounder Check model")
+  
+# Confound model residuals vs pretest confounds
+ggplot(csiw, aes(x=pretest.c, y = confounder.check.residuals.ld, color=factor(treat))) + geom_point()+
+  geom_smooth(method="loess", color="darkred")+  xlab("Pretest Scores Centered") + ylab("Residuals from Quadratic ANCOVA model") + labs(title="Residuals vs Pretest squared - Confounder Check model")
+```
+
+The model adjusted to include high achieving status as a confound shows that CSIW (t=16.36, p<.001), pre-test (t=5.72, p<.001), and high achieving status (t=3.48, p<.001) are significant predictors of average writing post-test scores. A non-CSIW student with an average pre-test score who is not considered a high achieving student is estiamted to have an average post-test score of 1.46 (out of max 3). Participating in CSIW is predicted to add an average of .33 points, each unit increase in the pre-test score is predicted to add an average of .30 points, and being a high achiever subpopulation is also predicted to add .33 points on average. 
+
+# F. HETEROGENEITY
+
+## F1. By Grade Level
+> Does the treatment effect depend on the grade level of the child? 
+confounder check for grade dummy called grade_2, grade_2 = 1, if Grade = 5 and grade_2 = 0 if Grade = 4.
+
+```{r heterogeneity} 
+# Subset by grade
+
+csiw4 <-  filter(csiw, csiw$grade_1 == 1)
+csiw5 <- filter(csiw, csiw$grade_2 == 1)
+
+model.grade4 <- lm(posttest ~ treat+pretest.c+pretest.csq, data=csiw4)
+summary(model.grade4)
+
+model.grade5 <- lm(posttest ~ treat+pretest.c+pretest.csq, data=csiw5)
+summary(model.grade5)
+
+model.grade <- lm(posttest ~ treat+pretest.c+pretest.csq+grade_2, data=csiw)
+summary(model.grade)
+
+csiw$ancova.grade.predicted <- predict(model.grade)
+csiw$ancova.grade.residuals <- residuals(model.grade)
+
+ggplot(csiw, aes(x=grade_2, y=ancova.grade.predicted, color=factor(treat))) +geom_point()+geom_smooth(method="loess", color="darkred")+
+  xlab("Grade level") + ylab("Predicted values") + labs(title="Quad ANCOVA model by Grade and CSIW")
+```
+          
+According to the above regressions tables that show the treatment coeffecient within grade 4 students ($b$=.42, p<.001) and within grade 5 students ($b$=.39, p<.001), participating in CSIW has a  significant effect on average post-test scores in both grades. A regression model that includes grade as a covariate, it is a significant predictor of post-test scores ($b$=.22, p<0.0001), where 5th grade students have an average estimated increase of .22 on post-test scores compared to 4th grade students. The graph of the predicted values by CSIW participation shows a small slope increase from grade 4 to grade 5 where the gap in post-test performance by CSIW is larger for 5th graders.
+
+          
+## F2. By Pre-test
+> Does the treatment effect depend on the child’s prior achievement level?
+Provide statistical evidence.
+
+```{r pretest heterogeneity} 
+
+model.pretest <- lm(posttest ~ treat*pretest.c, data=csiw)
+summary(model.pretest)
+
+csiw$ancova.pretest.predicted <- predict(model.pretest)
+
+ggplot(csiw, aes(x=pretest.c, y=ancova.pretest.predicted, color=factor(treat))) +geom_point()+geom_smooth(method="loess", color="darkred")+
+  xlab("Writing Pre-Test Score") + ylab("Predicted values") + labs(title="Predicted Post-Test Scores by Pre-Test score and CSIW")
+```
+
+In the above regression model, both CSIW particiation ($b$=0.44, p<.001) and pretest scores ($b$=.49, p<.001) are significant predictors of post-test scores.The plot of predicted post-test scores by pre-test scores and CSIW participation show that there is a larger gap in post-test scores between CSIW and non-CSIW students among those who performed worse on the writing pre-test, compared to those who scored higher.
+
+# G. CHECKING ASSUMPTIONS ON RANDOM ERROR 
+> Use a Loess Line and a Quadratic fit to check linearity of quadratic ancova model.
+
+```{r quad ancova assump}
+
+csiw$pretest.sq <- csiw$pretest^2
+
+csiw$quadratic.ancova.predicted <- predict(quadratic.ancova.model)
+csiw$quadratic.ancova.residuals <- residuals(quadratic.ancova.model)
+
+# Linearity
+ggplot(csiw, aes(x=csiw$quadratic.ancova.predicted, y = csiw$posttest, color=factor(treat))) + geom_point()+
+  geom_smooth(method="loess", color="darkred")+  xlab("Predicted Value") + ylab("Post-Test Scores") + labs(title="Predicted values vs Outcome - Quadratic ANCOVA model")
+
+## Scatter plot
+# Make a scatter plot in which the vertical axis has the residuals from the ANCOVA model and the horizontal axis is the covariate. 
+# Use a Loess Line and a Quadratic fit to check linearity.
+
+# plot quadratic ancova residuals against pre-test covariate w/loess line
+ggplot(csiw, aes(x=pretest.sq, y=quadratic.ancova.residuals, color=factor(treat))) + 
+  geom_point()+geom_smooth(method="loess", color="darkred") +
+  xlab("Pretest Scores Squared") + ylab("Residuals from ANCOVA model") +
+  labs(title="Residuals vs Pretest - ANCOVA model")
+
+```
+A plot of the model's predicted value agains the pre-test scores shows that the model violates the linearity assumption because it has about 3 kinks across the predicted values. The data fit the line much better in this model, which is seen in the narrow standard errors between the predicted values and pretest scores but it is not straight. 
+
+The plot of the residuals against the pre-test covariate have a more even distribution of residual errors on the top and bottom sides of the loess line, but it is still slightly curved.
+
+## G1. Normality of Residuals
+> Use a plot to check the normality of the residuals and explain
+
+```{r normality}
+
+# Naive
+qqnorm(csiw$naive.residuals, pch = 1)
+qqline(csiw$naive.residuals, col = "red", lwd = 2)
+
+# Quadratic
+qqnorm(csiw$quadratic.ancova.residuals, pch = 1)
+qqline(csiw$quadratic.ancova.residuals, col = "steelblue", lwd = 2)
+```
+
+A Q-Q plot of the model residuals shows that both the naive and quadratic models don't converge around a straight line which is cause for invalidating the normality assumption, although the quadratic model residual seem to fit tighter. 
+
+## G2. Homoskedasticity
+> Use a plot to check homoscedasticity and explain
+
+```{r homoscedasticity}
+
+ggplot(csiw, aes(x=naive.residuals, y=naive.predicted)) + geom_point(color="blue") + 
+  labs(title="Check for Homoskedasticity: Naive ANOVA") + 
+  geom_smooth(method="loess", linetype="dashed",color="darkred", fill="red")
+
+
+ggplot(csiw, aes(x=quadratic.ancova.residuals, y=quadratic.ancova.predicted)) + geom_point(color="blue") + 
+  labs(title="Check for Homoskedasticity: Quadratic ANCOVA") + 
+  geom_smooth(method="loess", linetype="dashed",color="darkred", fill="lightblue")
+```
+
+The homoskedasticity assumption doesn't hold for the quadratic ANCOVA model as the residuals spread more at the tail ends of the x-axis, similarly to the shape of the naive model's residuals against predicted values but with less dramatic curves.
+
+# H. CONCLUSION
+## H1. Final Estimate
+> What is your best estimate of the impact of CSIW on writing achievement (provide a confidence interval). 
+
+```{r summary all}
+# Summary
+export_summs(naive.model, ancova.model, quadratic.ancova.model, confounder.check.model.ld, confounder.check.model.ha, confint = TRUE, model.names = c("Naive", "ANCOVA", "Quad ANCOVA", "Q-ANCOVA-LD", "Q-ANCOVA-HA"))
+
+# Confidence intervanls
+confint(confounder.check.model.ld, level = 0.95)
+
+plot_summs(naive.model, ancova.model, quadratic.ancova.model, confounder.check.model.ld, confounder.check.model.ha, scale = TRUE, model.names = c("Naive", "ANCOVA", "Quad ANCOVA", "Q-ANCOVA-LD", "Q-ANCOVA-HA"), omit.coefs= FALSE)
+
+```
+
+The first table above compares the estimates and model fit for the naive ANOVA model, ANCOVA, Quadratic ANCOVA, and Quadratic ANCOVA controlling for learning disability and high achievement status. The $R^2$ estimate shows how much of the variation the model is able to explain, or how well the model fits the sample data. The highest $R^2$ is in the quadratic ANCOVA model that includes learning disability status as a counfound ($R^2$=.32) and the naive model explains the least variance in the post-test scores ($R^2$=.05).  
+
+Under the quadratic ANCOVA model that controls for learning disability status, the beta coefficient for CSIW participation is $b$=.29 and there is 95% confidence that a student randomly selected from the population will get an estimated CSIW coefficient between 0.12 and 0.46.
+
+The next figure is a plot of the coefficient estimates with 95% confidence intervals across each models so we can visually compare each variable. We can see that particiating in CSIW and having a learning disability are the larger absolute coefficients that predict a bigger increase or decrease on average relative to not participating or not having a learning disability.
+
+
+## H2. Assumptions
+> Under what assumptions is this a valid estimate of the causal effect?
+
+The predicted estimates from the repored models depends on passing assumptions about the models' residual error. A randomized controlled trial in which students were randomly assigned to participate in the CSIW program would help make a valid causal inference from these estimates because it removes potential selection bias from unobserved variables. We tested achievement level and grade level as potential confounds but there may be other unobserved variables that are predictive of students' writing post-test scores and participation in CSIW.
+
+### 1) Structural: Linearity
+To satisfy linearity, the relationship between our outcome of interest, writing post-test scores, and the predictor variables, CSIW, pre-test scores, and achievement level must each have a linear relationship, respectively. 
+
+### 2) Random: Normal residuals 
+The residual errors from the model must be normally distributed. 
+
+### 3) Random: Homogeneous residual variance
+The variance in the model's residual errors must be constant across all levels of the predictor variables.
+
+#### 4) Random: Independent residuals
+The model's residual error for a student must be must be independent from the residual errors of any other student. If the residual errors are shown to be correlated with each other, then there is a related unobserved factor in the error term that could bias the estimate.
+

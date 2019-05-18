@@ -1,0 +1,361 @@
+---
+title: "Lab 4 - Linear Regression Contd."
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r, warning=FALSE, message=FALSE}
+
+library(tidyverse)
+library(tidyimpute)
+library(ggplot2)
+library(summarytools)
+library(jtools)
+library(naniar)
+library(fastDummies)
+library(knitr)
+library(magrittr)
+library(huxtable)
+```
+
+In this lab we will try to use the csiw dataset but with different variable to understand how this analysis is to be done.   
+
+Let us load the required libraries first
+
+Now we can load the dataset
+```{r, warning=FALSE, message=FALSE}
+csiw <- read.csv("csiw07.csv")
+```
+
+Let us see how this dataset looks
+
+```{r}
+summary(csiw, plain.ascii = FALSE)
+```
+
+Keeping in line with the assignment structure we will choose the following variables  
+
+1. Treatment variable (binary) - `treatmt`  
+2. Achievement level (4 categories and extra category for missing data) - `group`  
+3. Pretest variable - `ccrdr1`  
+4. Post test variable - `ccrdr2`  
+5. Grade (1=Grade 4, 2= Grade 5) - `grade`  
+
+Now let us subset this information into a dataset and analyze
+```{r}
+csiw <- csiw %>% dplyr::mutate(treat=treatmt, pretest = ccrdr1, posttest=ccrdr2, grade =grade)
+csiw <- csiw %>% dplyr::select(treat, pretest, posttest, grade, group)
+head(csiw)
+```
+
+We have two recoding tasks ahead of us.   
+
+1. Recoding achievement levels in the `group` variable. But this is essentially creating dummy variables which is a little bit different than simple recoding. For creation of dummies we will use a convenient R package called `fastDummies`. 
+
+2. Recoding grade level in the `grade` variable. For this we will use the recode function in `dplyr` package.
+
+How does the achievement level variable actually look
+```{r}
+table(csiw$group)
+table(csiw$grade)
+```
+
+Other than the four categories of relevant levels, we also have a `-9` for the missing data. While there are many ways to deal with missing data such as mean/median/mode substitution or multiple imputation techniques among others. In our analysis, we will simply drop the data under the assumption of **Missing at Random**. It simple means that once we control for the relevant confounders, the data can be assumed to be missing at random and hence dropping those observations will not create bias in our estimates.   
+
+Let us replace the value `-9` with NAs for the continuous variables in the dataaset
+
+```{r}
+csiw <- csiw %>% replace_with_na(replace=list(pretest=-9,posttest=-9))
+```
+
+Now that we have dealt with the missing data, let us move onto the recoding process for `group` and `grade`. But remember...
+```
+Variable to be recoded has to be a Factor Variable.
+```
+
+Are our variables of interest in the factor type?
+```{r}
+class(csiw$treat)
+class(csiw$group)
+class(csiw$grade)
+
+table(csiw$treat)
+table(csiw$group)
+table(csiw$grade)
+
+```
+
+So let us convert them to factors first 
+Good practice to convert categorical variables as factors
+treatment needs to be considered numeric when running regression, but other covariates can remain as factors
+```{r}
+csiw$treat <- as.factor(csiw$treat)
+
+# convert into an ordered factor variable into unordered
+csiw$treat <- factor(as.numeric(as.character(csiw$treat)), ordered=FALSE)
+table(csiw$treat)
+
+csiw$group <- as.factor(csiw$group)
+csiw$grade <- as.factor(csiw$grade)
+
+```
+
+Since we need treat vaiable in the 1 or 0 form we will recode this variable
+```{r}
+csiw$treat <- recode(csiw$treat, "1"="1","2"="0")
+csiw$treat <- as.character(csiw$treat)
+csiw$treat <- as.numeric(csiw$treat)
+table(csiw$treat)
+```
+
+For the `group` variable we need to create dummies as below
+```{r}
+# lets us first recode the entries in the group column for ease of use once we create dummies. 
+# We will see why....
+colnames(csiw)
+csiw$group <- recode(csiw$group, "1"="high","2"= "average", "3"="low", "4"="learndis","-9"="missing")
+table(csiw$group)
+```
+
+Now we can create the required dummies
+```{r}
+csiw <- dummy_cols(csiw,select_columns = "group")
+colnames(csiw)
+```
+
+Similarly, let us now work with the `grade` variable
+```{r}
+table(csiw$grade)
+```
+
+Now we have to create one dummy for use in this analysis, as before, we can create two dummies for each category but use only one in the analysis.
+```{r}
+csiw$grade <- recode(csiw$grade, "1"="1", "2"="2", "-9"="missing")
+csiw <- dummy_cols(csiw,select_columns = "grade")
+colnames(csiw)
+```
+
+We will use the variable `grade_2` as the required dummy in this analysis. 
+
+### Analysis
+
+#### Naive Model
+1. Outcome = posttest 
+2. Predictor = treat
+
+$$ posttest_i = \beta_0 + \beta_1treat_i + \epsilon_i $$
+$ \beta_1$ = Effect of being in the treated group on the posttest outcome measure. 
+
+Let us run a simple linear regression to estimate the naive model
+```{r}
+naive.model <- lm(posttest~treat, data=csiw)
+summ(naive.model)
+```
+
+
+#### ANCOVA
+
+In ANCOVA the idea is that we have a continuous variable as the outcome (posttest) and a discrete variable as the predictor of interest (treat) and other covariates to be controlled for (pretest).  
+
+$$ posttest_i = \beta_0 + \beta_1treat_i + \beta_2pretest + \epsilon_i $$
+
+In R, ANCOVA is also implemented in the `lm()` funcion we use for linear regression. 
+```{r}
+ancova.model <- lm(posttest ~ treat + pretest, data=csiw)
+summ(ancova.model)
+```
+
+```{r}
+export_summs(naive.model, ancova.model)
+```
+
+Now we can also plot the `predicted` values as a function of `pretest` and `treat` (group membership).
+```{r}
+# creating a new column in csiw dataset for the predicted values from ANCOVA model
+# csiw$ancova.predicted <- predict(ancova.model)
+```
+
+This error happened because while doing linear regression, R drops the rows where column values are NA. So while doing the analysis, R is dropping 135 observations due to missing data. 
+
+Let us remove the rows that have NA values and redo the analysis. 
+```{r}
+csiw <- csiw[which(complete.cases(csiw)), ]
+```
+
+Now we will do the ANOVA steps again to see if we get this error
+```{r}
+ancova.model <- lm(posttest ~ treat + pretest, data=csiw)
+summ(ancova.model)
+```
+
+Dropping the missing values seems to change the treatment effect, this might be an indication that the data is not missing at random. But we will continue with the analysis for now
+```{r}
+# creating a new column in csiw dataset for the predicted values from ANCOVA model
+csiw$ancova.predicted <- predict(ancova.model)
+```
+
+As you can see now we do not have the error message we had earlier.  
+
+Now let us implement the required plot using `ggplot2` pakage.
+```{r, warning=FALSE}
+ggplot(csiw, aes(x=pretest, y=ancova.predicted, group=factor(treat),color=factor(treat))) + geom_point()+geom_smooth(method="loess", color="darkred")
+```
+
+
+#### Assessing linearity
+
+The assignment asks to plot the residuals from the ANCOVA model against the pretest covariate. We will first calculate the residuals and store it in a new column in csiw and then do the plotting
+```{r}
+# storing residuals as new column in csiw
+csiw$ancova.residuals <- residuals(ancova.model)
+```
+
+Now we can plot the required graph. Let us add labels to the x and y axis in this plot
+```{r, warning = FALSE}
+ggplot(csiw, aes(x=pretest, y=ancova.residuals, color=factor(treat))) +geom_point()+geom_smooth(method="loess", color="darkred")+
+  xlab("Pretest Scores") + ylab("Residuals from ANCOVA model") + labs(title="Residuals vs Pretest - ANCOVA model")
+```
+
+How do we add a quadratic fit? We can create a new variable (pretest.sq) for the pretest variable's squared value and then replot the graph with the squared variable as the covariate.
+```{r}
+csiw$pretest.sq <- csiw$pretest^2
+```
+
+Now let us plot the graph again
+```{r, warning=FALSE}
+ggplot(csiw, aes(x=pretest.sq, y=ancova.residuals, color=factor(treat))) +geom_point()+geom_smooth(method="loess", color="darkred")+
+  xlab("Pretest Scores Squared") + ylab("Residuals from ANCOVA model") + labs(title="Residuals vs Pretest squared - ANCOVA model")
+```
+
+We can see that linearity seems to be not really satisfied, because the residuals are close to zero but seem to have be offset below the zero line. 
+
+We have heterosketastity based on the increasing variance as shown by the dark grey region. 
+
+#### Quadratic model
+
+Now we have to center the variable `pretest` and create another variable for the squared value of the centered pretest variable.
+```{r}
+# We will use the mutate function to create new variables
+pretest.mean <- mean(csiw$pretest)
+pretest.mean
+csiw$pretest.c <- csiw$pretest-pretest.mean
+csiw$pretest.csq <- (csiw$pretest.c)^2
+```
+
+Now let us run the ANCOVA again with the centered variable and its square
+```{r}
+quadratic.ancova.model <- lm(posttest ~ treat+pretest.c+pretest.csq, data=csiw)
+export_summs(naive.model, ancova.model, quadratic.ancova.model)
+```
+
+
+
+
+
+Let us look at the predicted values and residual plots of this updated model
+```{r}
+csiw$quadratic.ancova.predicted <- predict(quadratic.ancova.model)
+csiw$quadratic.ancova.residuals <- residuals(quadratic.ancova.model)
+```
+
+Now the plots
+```{r, warning=FALSE}
+par(mfrow=c(1,2))
+
+ggplot(csiw, aes(x=pretest.c, y = quadratic.ancova.predicted, color=factor(treat))) + geom_point()+
+  geom_smooth(method="loess", color="darkred")+  xlab("Pretest Scores Centered") + ylab("Predicted values from Quadratic ANCOVA model") + labs(title="Predicted values vs Pretest squared - Quadratic ANCOVA model")
+
+ggplot(csiw, aes(x=pretest.c, y = quadratic.ancova.residuals, color=factor(treat))) + geom_point()+
+  geom_smooth(method="loess", color="darkred")+  xlab("Pretest Scores Centered") + ylab("Residuals from Quadratic ANCOVA model") + labs(title="Residuals vs Pretest squared - Quadratic ANCOVA model")
+```
+
+#### Searching for confounders
+
+In order to identify confounders we need three kinds of tests:  
+
+1. ANOVA - aov() - for continuous outcome on discrete predictor  
+2. Linear Regression - lm () - for continuous outcome on continuous predictor 
+3. Chi Square test - chisq.test() - for discrete outcome on discrete predictor  
+
+The list of confounders to check:  
+
+1. Dummies from achievement level
+2. Dummy for grade level
+
+Let us see some examples. Let us see 
+
+```{r}
+
+# Dummies from achievement level eg. achievement level = high
+## corresponding dummy in the dataset = group_high
+
+### outcome vs. predictor = posttest vs. group_high = continuous vs. discrete = ANOVA
+
+summary(aov(posttest~group_high, data=csiw))
+summary(aov(posttest~group_average, data=csiw))
+summary(aov(posttest~group_low, data=csiw))
+summary(aov(posttest~group_learndis, data=csiw))
+
+### treatment vs. predictor = treat vs group_learndis = Chi Square test
+csiw$treat.factor <- factor(csiw$treat)
+chisq.test(csiw$treat.factor,csiw$group_high)
+chisq.test(csiw$treat.factor,csiw$group_learndis)
+```
+
+From the results above we can see that this is a potential confounder. Now let us add this to the model and see the output
+```{r}
+confounder.check.model <- lm(posttest ~ treat+pretest.c+pretest.csq+group_high + group_learndis, data=csiw)
+export_summs(naive.model, ancova.model, quadratic.ancova.model, confounder.check.model)
+```
+
+Let us look at the predicted values and residual plots of this updated model
+```{r}
+csiw$confounder.check.model <- predict(confounder.check.model)
+csiw$confounder.check.residuals <- residuals(confounder.check.model)
+```
+
+Now the plots
+```{r, warning=FALSE}
+par(mfrow=c(1,2))
+
+ggplot(csiw, aes(x=pretest.c, y = confounder.check.model, color=factor(treat))) + geom_point()+
+  geom_smooth(method="loess", color="darkred")+  xlab("Pretest Scores Centered") + ylab("Predicted values from Quadratic ANCOVA model") + labs(title="Predicted values vs Pretest squared - Confounder Check model")
+
+ggplot(csiw, aes(x=pretest.c, y = confounder.check.residuals, color=factor(treat))) + geom_point()+
+  geom_smooth(method="loess", color="darkred")+  xlab("Pretest Scores Centered") + ylab("Residuals from Quadratic ANCOVA model") + labs(title="Residuals vs Pretest squared - Confounder Check model")
+```
+
+Now let us look at the results we have gotten so far again. 
+```{r, results="asis"}
+export_summs(naive.model, ancova.model, quadratic.ancova.model, confounder.check.model)
+```
+
+Since the remaining list of covariates to check for confounding are all discrete, we can repeat the steps from above with different covariates. 
+
+```
+Exercise: Do the confounder check for grade dummy called grade_2.  
+          grade_2 = 1, if Grade = 5 and grade_2 = 0 if Grade = 4.
+```
+
+#### Heterogeneity
+```{r}
+interaction.model <- lm(posttest ~ treat*grade_1 +pretest.c+pretest.csq+group_high + group_learndis, data=csiw)
+export_summs(naive.model, ancova.model, quadratic.ancova.model, confounder.check.model,interaction.model)
+csiw$interaction.predicted <- predict(interaction.model)
+```
+
+
+
+```{r}
+interaction.model2 <- lm(posttest ~ treat*grade_2 +pretest.c+pretest.csq+group_high + group_learndis, data=csiw)
+export_summs(naive.model, ancova.model, quadratic.ancova.model, confounder.check.model,interaction.model, interaction.model2)
+```
+```
+Exercise: Do the interaction check for treatment and prior achievement level on 4 groups.
+```
+
+#### Checking assumptions about the random part of model 
+```{r}
+plot(interaction.model2)
+```

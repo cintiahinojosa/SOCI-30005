@@ -1,0 +1,112 @@
+---
+title: "SOCI 30005_PS3_Hinojosa"
+author: "Cintia Hinojosa"
+date: "5/18/2019"
+output:
+ pdf_document:
+ keep_tex: true
+---
+
+## Setup
+**Git-Overleaf publish commands**
+ git pull origin master
+ git add .
+ git commit -m “message” 
+ git push -u origin master
+ 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	error = TRUE,
+	warning = FALSE
+)
+```
+
+```{r libraries, message=FALSE, warning=FALSE, include=FALSE} 
+
+# data files
+library(readr)
+library(foreign)
+library(haven)
+library(knitr)
+
+# data wrangling
+library(tidyverse)
+library(plyr)
+library(dplyr)
+library(tidyimpute)
+library(magrittr) # %>%
+library(qwraps2) # wrapper
+library(reshape2) 
+library(forcats) # factor variables
+library(doBy) # groupwise 
+library(fastDummies)  # dummy_cols(.data, select_columns = NULL)
+
+# summaries
+library(stargazer) 
+library(summarytools)
+library(jtools) # summ(): summarize/visualize regressions
+library(naniar) # summarize & missing data; w/tidy
+library(huxtable) # format text tables
+
+# analyses
+library(lmtest)
+library(psych)
+library(rdrobust) # regression discontinuity
+library(gmodels) # glm parameters, estimates, contrasts, tests 
+
+# plots
+library(ggplot2)
+library(HistogramTools)
+
+```
+
+```{r load}
+setwd("C:/Users/cinti/Box Sync/Booth 2017-2018/Spring 2019/SOCI 30005/")
+
+csiw <- read_sav("csiw_final.sav")
+
+summary(csiw)
+```
+
+### Key Variables
+- CSIW (treatmt)
+    - 1=CSIW
+    - 0=control
+- Achievement Level (group)
+    - 1=High
+    - 2=Average
+    - 3=Low
+    - 4=Learning Disability 
+- Holistic pretest (cch1)
+    - pre-test on writing achievement
+- Holistic posttest (cch2)
+    - post-test on writing achievement
+- Grade (grade)
+    - 1=Grade 4
+    - 2=Grade 5
+- School
+
+## Intro
+
+**Our aim in this assignment is the same as it was in Assignment 2: To study the impact of cognitive strategies on writing on writing (CSIW). But now we are going to confront and solve two key problems that were ignored in Assignment 2: a) the nested character of the data; b) missing data.**
+
+**You should have already re-coded Achievement Level into 4 dummy variables and grade into 1 dummy variable.**
+```{r recode}
+
+# achievement level into 4 dummy variables
+
+# grade into 1 dummy variable
+
+```
+
+
+## A. Nested Data 
+**Run a cross tab in which the rows are the schools (“school”) and rows are CSIW. Based on this, tell us at what level the treatment (“CSIW”) varies.** 
+
+## B. Build the MDM file 
+**Sort the cases by “school.” The level-1 and level-2 files will be the same. Choose the relevant child level variables at level-1 and the relevant school variable at level 2. B. Analysis of covariance (ANCOVA) model. Indicate that there are missing data, and tell the program to delete missing level-1 cases at run time.**
+
+
+## C. Analysis of Covariance
+**1. Write down the level-1 model with relevant covariates (do not include quadratic terms or interactions at this time). 2. Write down the level-2 model. 3. Estimate the model and tell us the estimated treatment effect and its standard error (model based and robust).**

@@ -1,0 +1,18 @@
+#HLM2 MDM CREATION TEMPLATE
+mdmtype:0
+rawdattype:spss
+l1fname:C:\Users\cinti\Box Sync\Booth 2017-2018\Spring 2019\Statistical Methods of Research 2\TA Sessions\hsb1.sav
+l2fname:C:\Users\cinti\Box Sync\Booth 2017-2018\Spring 2019\Statistical Methods of Research 2\TA Sessions\hsb2.sav
+l1missing:n
+timeofdeletion:now
+mdmname:hsb.mdm
+*begin l1vars
+level2id:ID
+SES
+MATHACH
+*end l1vars
+*begin l2vars
+level2id:ID
+SECTOR
+MEANSES
+*end l2vars
