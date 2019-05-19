@@ -1,0 +1,78 @@
+---
+title: "SOCI 30005_PS3_Hinojosa"
+author: "Cintia Hinojosa"
+date: "5/18/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	error = TRUE,
+	warning = FALSE
+)
+```
+
+```{r libraries, message=FALSE, warning=FALSE, include=FALSE} 
+
+# data files
+library(readr)
+library(foreign)
+library(haven)
+library(knitr)
+
+# data wrangling
+library(tidyverse)
+library(plyr)
+library(dplyr)
+library(tidyimpute)
+library(magrittr) # %>%
+library(qwraps2) # wrapper
+library(reshape2) 
+library(forcats) # factor variables
+library(doBy) # groupwise 
+library(fastDummies)  # dummy_cols(.data, select_columns = NULL)
+
+
+# summaries
+library(stargazer) 
+library(summarytools)
+library(jtools) # summ(): summarize/visualize regressions
+library(naniar) # summarize & missing data; w/tidy
+library(huxtable) # format text tables
+
+# analyses
+library(lmtest)
+library(psych)
+library(rdrobust) # regression discontinuity
+library(gmodels) # glm parameters, estimates, contrasts, tests 
+
+# plots
+library(ggplot2)
+library(HistogramTools)
+
+```
+
+# CSIW Dataset
+```{r load}
+csiw <- read_sav("csiw_final.sav")
+summary(csiw, plain.scii = FALSE)
+```
+
+### Key Variables
+- CSIW (treatmt)
+    - 1=CSIW
+    - 0=control
+- Achievement Level (group)
+    - 1=High
+    - 2=Average
+    - 3=Low
+    - 4=Learning Disability 
+- Holistic pretest (cch1)
+    - pre-test on writing achievement
+- Holistic posttest (cch2)
+    - post-test on writing achievement
+- Grade (grade)
+    - 1=Grade 4
+    - 2=Grade 5
+
