@@ -1,7 +1,7 @@
 ---
 title: "SOCI 30005_PS3_Hinojosa"
 author: "Cintia Hinojosa"
-date: "5/18/2019"
+date: "5/19/2019"
 output:
  pdf_document:
  keep_tex: true
